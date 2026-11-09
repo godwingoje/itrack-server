@@ -1,132 +1,152 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# FixFlow
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+**A modern and streamlined IT Support Ticket & Asset Management System.**
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+FixFlow simplifies IT support operations by providing a centralized platform for reporting technical issues, managing support tickets, tracking IT assets, assigning support personnel, and monitoring ticket resolution.
 
-## Description
+## Overview
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+FixFlow is designed to improve how organizations manage IT support requests and assets. It provides employees and IT support teams with an organized workflow for reporting issues, tracking progress, managing devices, and ensuring accountability throughout the support process.
 
-## Project setup
+## Core Features
 
-```bash
-$ pnpm install
-```
+- **Ticket Management:** Create, assign, track, and manage IT support tickets.
+- **Asset Management:** Register, retrieve, and manage organizational IT assets.
+- **Support Assignment:** Assign IT support personnel to tickets and assets where applicable.
+- **SLA Management:** Monitor service-level agreements and ticket resolution timelines.
+- **Ticket History:** Maintain records of ticket activities, comments, and status changes.
+- **Gate Pass Management:** Manage and verify asset movement.
+- **Dashboard & Analytics:** Provide insights into support activities and operational performance.
+- **Role-Based Access Control:** Ensure users access features according to their assigned roles.
 
-## Compile and run the project
+## Tech Stack
 
-```bash
-# development
-$ pnpm run start
+- **Framework:** NestJS
+- **Language:** TypeScript
+- **ORM:** Prisma
+- **Database:** PostgreSQL
+- **Package Manager:** pnpm
 
-# watch mode
-$ pnpm run start:dev
+## Getting Started
 
-# production mode
-$ pnpm run start:prod
-```
+### Prerequisites
 
-## Run tests
+Ensure you have the following installed:
+
+- Node.js
+- pnpm
+- PostgreSQL
+
+### Installation
+
+Clone the repository:
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+git clone <repository-url>
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Navigate into the project directory:
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+cd fixflow-server
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
+Install dependencies:
 
 ```bash
-$ npx @nestjs/observe link
+pnpm install
 ```
 
-It installs `@nestjs/observe`, wires it into `AppModule` and `main.ts`, and writes the app key and secret into `.env`, which every `nest start` script (`start`, `start:dev`, `start:debug`) then loads. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
+### Environment Configuration
 
-Or do it by hand:
+Create your local environment file using the provided example:
 
 ```bash
-$ pnpm install @nestjs/observe
+cp .env.example .env
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/sdk) - it takes a single import and an app key.
+Configure the required environment variables before starting the application.
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+### Running the Application
 
-## Resources
+Development mode:
 
-Check out a few resources that may come in handy when working with NestJS:
+```bash
+pnpm run start:dev
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Production build:
 
-## Support
+```bash
+pnpm run build
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Code Quality & Git Hooks
 
-## Stay in touch
+FixFlow uses Husky and Commitlint to maintain code quality and enforce consistent commit messages.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Pre-commit Checks
 
-## License
+The following checks are executed before a commit is accepted:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- Linting
+- Production build verification
+
+### Commit Message Convention
+
+All commits must follow the **Conventional Commits** format:
+
+```text
+<type>(<scope>): <description>
+```
+
+The following commit types are approved for this project:
+
+| Type | Description | Example |
+|---|---|---|
+| `feat` | Introduces a new feature | `feat(auth): implement JWT authentication` |
+| `fix` | Fixes a bug | `fix(tickets): correct status update logic` |
+| `docs` | Documentation changes | `docs: update API documentation` |
+| `refactor` | Code restructuring without changing functionality | `refactor(users): simplify user service` |
+| `test` | Adds or modifies tests | `test(tickets): add assignment tests` |
+| `chore` | General maintenance and tooling | `chore: configure husky` |
+| `build` | Build system or dependency changes | `build: update NestJS dependencies` |
+| `ci` | CI/CD configuration changes | `ci: configure GitHub Actions` |
+| `perf` | Performance improvements | `perf(tickets): optimize ticket queries` |
+| `style` | Formatting changes without affecting logic | `style: format source files` |
+| `revert` | Reverts a previous commit | `revert: undo ticket assignment` |
+
+### Commit Message Examples
+
+```bash
+git commit -m "feat(auth): implement JWT authentication"
+
+git commit -m "feat(tickets): add ticket creation endpoint"
+
+git commit -m "fix(assignments): prevent duplicate assignments"
+
+git commit -m "test(sla): add deadline calculation tests"
+
+git commit -m "chore: configure commitlint and husky"
+```
+
+**Important:** Commit messages that do not follow the agreed convention will be rejected by Commitlint.
+
+## Contribution Guidelines
+
+1. Create a feature branch before implementing changes.
+2. Follow the established NestJS module architecture.
+3. Write clean, maintainable, and reusable code.
+4. Follow the project's naming and coding conventions.
+5. Ensure linting and build checks pass before committing.
+6. Use the approved Conventional Commit formats.
+7. Submit changes through pull requests for review and integration.
+
+## Project Status
+
+Currently under development.
+
+---
+
+**FixFlow**  
+*Streamlining IT support, one ticket at a time.*
