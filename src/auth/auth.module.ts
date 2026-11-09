@@ -14,7 +14,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.getOrThrow<string>('JWT_SECRET'),
+        secret:
+          config.get<string>('JWT_SECRET') ||
+          'fixflow-default-development-secret-key-min-32-chars',
         signOptions: {
           expiresIn: (config.get<string>('JWT_EXPIRES_IN') ?? '15m') as any,
           algorithm: 'HS256',

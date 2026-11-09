@@ -23,7 +23,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([extractJwtFromCookie]),
       ignoreExpiration: false,
-      secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),
+      secretOrKey:
+        configService.get<string>('JWT_SECRET') ||
+        'fixflow-default-development-secret-key-min-32-chars',
       algorithms: ['HS256'],
     });
   }
