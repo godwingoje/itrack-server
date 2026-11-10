@@ -2,7 +2,7 @@
 
 **A modern and streamlined IT Support Ticket & Asset Management System.**
 
-FixFlow simplifies IT support operations by providing a centralized platform for reporting technical issues, managing support tickets, tracking IT assets, assigning support personnel, and monitoring ticket resolution.
+ITrack simplifies IT support operations by providing a centralized platform for reporting technical issues, managing support tickets, tracking IT assets, assigning support personnel, and monitoring ticket resolution.
 
 ## Overview
 
@@ -144,11 +144,3 @@ git commit -m "chore: configure commitlint and husky"
 6. Use the approved Conventional Commit formats.
 7. Submit changes through pull requests for review and integration.
 
-## Project Status
-
-Currently under development.
-
----
-
-**FixFlow**  
-*Streamlining IT support, one ticket at a time.*
