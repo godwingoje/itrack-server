@@ -142,11 +142,3 @@ git commit -m "chore: configure commitlint and husky"
 6. Use the approved Conventional Commit formats.
 7. Submit changes through pull requests for review and integration.
 
-## Project Status
-
-Currently under development.
-
----
-
-**FixFlow**  
-*Streamlining IT support, one ticket at a time.*
