@@ -1,4 +1,4 @@
-# FixFlow
+# ITrack
 
 **A modern and streamlined IT Support Ticket & Asset Management System.**
 
@@ -6,7 +6,7 @@ FixFlow simplifies IT support operations by providing a centralized platform for
 
 ## Overview
 
-FixFlow is designed to improve how organizations manage IT support requests and assets. It provides employees and IT support teams with an organized workflow for reporting issues, tracking progress, managing devices, and ensuring accountability throughout the support process.
+ITrack is designed to improve how organizations manage IT support requests and assets. It provides employees and IT support teams with an organized workflow for reporting issues, tracking progress, managing devices, and ensuring accountability throughout the support process.
 
 ## Core Features
 
@@ -80,6 +80,8 @@ Production build:
 ```bash
 pnpm run build
 ```
+
+The build command generates the Prisma client from `prisma/schema.prisma` before compiling the application.
 
 ## Code Quality & Git Hooks
 
