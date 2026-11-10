@@ -1,8 +1,8 @@
-# FixFlow
+# ITrack
 
 **A modern and streamlined IT Support Ticket & Asset Management System.**
 
-FixFlow simplifies IT support operations by providing a centralized platform for reporting technical issues, managing support tickets, tracking IT assets, assigning support personnel, and monitoring ticket resolution.
+ITrack simplifies IT support operations by providing a centralized platform for reporting technical issues, managing support tickets, tracking IT assets, assigning support personnel, and monitoring ticket resolution.
 
 ## Overview
 
