@@ -1,8 +1,11 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { Role } from '../../generated/prisma/enums';
 import {
+  CreateUserRecordInput,
+  DepartmentRecord,
   UserRecord,
   UsersRepository,
 } from '../interfaces/users.repository.interface';
@@ -142,5 +145,52 @@ export class InMemoryUsersRepository implements UsersRepository, OnModuleInit {
   async findByEmail(email: string): Promise<UserRecord | null> {
     const normalized = email.trim().toLowerCase();
     return this.users.find((u) => u.email.toLowerCase() === normalized) ?? null;
+  }
+
+  async findByStaffId(staffId: string): Promise<UserRecord | null> {
+    const normalized = staffId.trim().toLowerCase();
+    return this.users.find((u) => u.staffId.toLowerCase() === normalized) ?? null;
+  }
+
+  async findAllByOrganizationId(organizationId: string): Promise<UserRecord[]> {
+    return this.users.filter((user) => user.organizationId === organizationId);
+  }
+
+  async findDepartmentsByOrganizationId(
+    organizationId: string,
+  ): Promise<DepartmentRecord[]> {
+    const departments = new Map<string, DepartmentRecord>();
+    for (const user of this.users) {
+      if (user.organizationId === organizationId) {
+        departments.set(user.department.id, user.department);
+      }
+    }
+    return [...departments.values()];
+  }
+
+  async create(input: CreateUserRecordInput): Promise<UserRecord | null> {
+    const organizationUser = this.users.find(
+      (user) => user.organizationId === input.organizationId,
+    );
+    const departmentUser = this.users.find(
+      (user) =>
+        user.organizationId === input.organizationId &&
+        user.departmentId === input.departmentId,
+    );
+    if (!organizationUser || !departmentUser) return null;
+
+    const now = new Date();
+    const user: UserRecord = {
+      id: randomUUID(),
+      ...input,
+      email: input.email.trim().toLowerCase(),
+      organization: organizationUser.organization,
+      department: departmentUser.department,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.users.push(user);
+    return user;
   }
 }

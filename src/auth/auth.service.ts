@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   OnModuleInit,
@@ -14,8 +16,14 @@ import {
   USERS_REPOSITORY,
 } from '../common/constants/tokens';
 import type { RefreshSessionRepository } from '../repositories/interfaces/refresh-session.repository.interface';
-import type { UsersRepository } from '../repositories/interfaces/users.repository.interface';
+import type {
+  DepartmentRecord,
+  UserRecord,
+  UsersRepository,
+} from '../repositories/interfaces/users.repository.interface';
+import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
+import { z } from 'zod';
 import { AuthenticatedUser } from './types/authenticated-user.interface';
 import { JwtPayload } from './types/jwt-payload.interface';
 
@@ -40,6 +48,32 @@ export class AuthService implements OnModuleInit {
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private toAuthenticatedUser(user: UserRecord): AuthenticatedUser {
+    return {
+      id: user.id,
+      staffId: user.staffId,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
+      organization: user.organization,
+      departmentId: user.departmentId,
+      department: user.department,
+      phone: user.phone,
+      address: user.address,
+      isActive: user.isActive,
+    };
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'P2002'
+    );
   }
 
   private getCookieOptions(): CookieOptions {
@@ -77,6 +111,69 @@ export class AuthService implements OnModuleInit {
     res.clearCookie('fixflow_refresh', baseOptions);
   }
 
+  async listUsers(organizationId: string): Promise<AuthenticatedUser[]> {
+    const users =
+      await this.usersRepository.findAllByOrganizationId(organizationId);
+    return users.map((user) => this.toAuthenticatedUser(user));
+  }
+
+  listDepartments(organizationId: string): Promise<DepartmentRecord[]> {
+    return this.usersRepository.findDepartmentsByOrganizationId(
+      organizationId,
+    );
+  }
+
+  async createUser(
+    input: CreateUserDto,
+    organizationId: string,
+  ): Promise<AuthenticatedUser> {
+    if (
+      this.configService.get<string>('DATA_SOURCE') === 'prisma' &&
+      !z.string().uuid().safeParse(input.departmentId).success
+    ) {
+      throw new BadRequestException('The selected department ID is invalid.');
+    }
+
+    const email = input.email.trim().toLowerCase();
+    if (await this.usersRepository.findByEmail(email)) {
+      throw new ConflictException('A user with this email already exists.');
+    }
+
+    const staffId = input.staffId?.trim() || `USR-${randomUUID()}`;
+    if (await this.usersRepository.findByStaffId(staffId)) {
+      throw new ConflictException('A user with this staff ID already exists.');
+    }
+
+    const passwordHash = await bcrypt.hash(input.password, 12);
+    let user: UserRecord | null;
+    try {
+      user = await this.usersRepository.create({
+        staffId,
+        fullName: input.fullName.trim(),
+        email,
+        passwordHash,
+        role: input.role,
+        organizationId,
+        departmentId: input.departmentId,
+        phone: input.phone?.trim() || null,
+        address: input.address?.trim() || null,
+      });
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        throw new ConflictException('Email or staff ID is already in use.');
+      }
+      throw error;
+    }
+
+    if (!user) {
+      throw new BadRequestException(
+        'The selected department does not belong to your organization.',
+      );
+    }
+
+    return this.toAuthenticatedUser(user);
+  }
+
   async login(dto: LoginDto, res: Response): Promise<{ user: AuthenticatedUser }> {
     const user = await this.usersRepository.findByEmail(dto.email);
     const hashToCompare = user ? user.passwordHash : this.dummyHash;
@@ -108,22 +205,7 @@ export class AuthService implements OnModuleInit {
 
     this.setAuthCookies(res, accessToken, rawRefreshToken);
 
-    return {
-      user: {
-        id: user.id,
-        staffId: user.staffId,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        organizationId: user.organizationId,
-        organization: user.organization,
-        departmentId: user.departmentId,
-        department: user.department,
-        phone: user.phone,
-        address: user.address,
-        isActive: user.isActive,
-      },
-    };
+    return { user: this.toAuthenticatedUser(user) };
   }
 
   async refresh(
@@ -193,22 +275,7 @@ export class AuthService implements OnModuleInit {
 
     this.setAuthCookies(res, accessToken, newRawRefreshToken);
 
-    return {
-      user: {
-        id: user.id,
-        staffId: user.staffId,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        organizationId: user.organizationId,
-        organization: user.organization,
-        departmentId: user.departmentId,
-        department: user.department,
-        phone: user.phone,
-        address: user.address,
-        isActive: user.isActive,
-      },
-    };
+    return { user: this.toAuthenticatedUser(user) };
   }
 
   async logout(

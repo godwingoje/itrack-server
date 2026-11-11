@@ -67,6 +67,24 @@ cp .env.example .env
 
 Configure the required environment variables before starting the application.
 
+### Authentication API
+
+The authentication routes are prefixed with `/api/v1/auth`:
+
+| Method | Route | Access | Purpose |
+|---|---|---|---|
+| `POST` | `/login` | Public | Sign in and issue HTTP-only session cookies |
+| `POST` | `/refresh` | Refresh cookie | Rotate the refresh session |
+| `POST` | `/logout` | Signed-in | Revoke the refresh session and clear cookies |
+| `GET` | `/me` | Signed-in | Return the current user |
+| `GET` | `/departments` | IT Admin | List departments in the current organization |
+| `GET` | `/users` | IT Admin | List users in the current organization |
+| `POST` | `/users` | IT Admin | Create a user in the current organization |
+
+Create-user requests require `fullName`, `email`, `password` (8–128 characters), `role`, and a `departmentId` returned by `/departments`. `staffId`, `phone`, and `address` are optional. The organization is taken from the authenticated administrator's session, not from the request body. Password-reset endpoints are not available until an email-delivery provider is configured.
+
+For Render, set `NODE_ENV=production`, `DATA_SOURCE=prisma`, `DATABASE_URL` to the production PostgreSQL connection string, and `JWT_SECRET` to a unique secret of at least 32 characters. Keep `PORT` on Render's assigned value (the service reads it automatically); optionally set `JWT_EXPIRES_IN`. `CORS_ORIGINS` is a comma-separated list of exact frontend origins and can remain unset while the frontend is local. Add the deployed frontend origin there when one exists. Do not set `SEED_PASSWORD` for production Prisma data.
+
 ### Running the Application
 
 Development mode:
@@ -143,4 +161,3 @@ git commit -m "chore: configure commitlint and husky"
 5. Ensure linting and build checks pass before committing.
 6. Use the approved Conventional Commit formats.
 7. Submit changes through pull requests for review and integration.
-
