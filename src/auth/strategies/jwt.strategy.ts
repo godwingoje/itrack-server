@@ -1,10 +1,9 @@
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../prisma/prisma.service';
 import { PassportStrategy } from '@nestjs/passport';
 import type { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { USERS_REPOSITORY } from '../../common/constants/tokens';
-import type { UsersRepository } from '../../repositories/interfaces/users.repository.interface';
 import { AuthenticatedUser } from '../types/authenticated-user.interface';
 import { JwtPayload } from '../types/jwt-payload.interface';
 
@@ -18,7 +17,7 @@ function extractJwtFromCookie(req: Request): string | null {
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     configService: ConfigService,
-    @Inject(USERS_REPOSITORY) private readonly usersRepository: UsersRepository,
+    private readonly prisma: PrismaService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([extractJwtFromCookie]),
@@ -31,7 +30,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
-    const user = await this.usersRepository.findById(payload.sub);
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      include: { organization: true, department: true },
+    });
     if (!user || !user.isActive) {
       throw new UnauthorizedException(
         'Account is inactive or no longer exists.',

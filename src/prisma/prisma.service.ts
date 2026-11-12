@@ -9,9 +9,7 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor(private readonly configService: ConfigService) {
-    const connectionString =
-      configService.get<string>('DATABASE_URL') ||
-      'postgresql://localhost:5432/fixflow_db';
+    const connectionString = configService.getOrThrow<string>('DATABASE_URL');
 
     super({
       adapter: new PrismaPg({
@@ -21,11 +19,7 @@ export class PrismaService
   }
 
   async onModuleInit() {
-    const dataSource = this.configService.get<string>('DATA_SOURCE');
-    const databaseUrl = this.configService.get<string>('DATABASE_URL');
-    if (dataSource === 'prisma' && databaseUrl) {
-      await this.$connect();
-    }
+    await this.$connect();
   }
 
   async onModuleDestroy() {

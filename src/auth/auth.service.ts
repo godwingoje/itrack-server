@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  Inject,
   Injectable,
   OnModuleInit,
   UnauthorizedException,
@@ -11,16 +10,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import type { CookieOptions, Response } from 'express';
-import {
-  REFRESH_SESSION_REPOSITORY,
-  USERS_REPOSITORY,
-} from '../common/constants/tokens';
-import type { RefreshSessionRepository } from '../repositories/interfaces/refresh-session.repository.interface';
-import type {
-  DepartmentRecord,
-  UserRecord,
-  UsersRepository,
-} from '../repositories/interfaces/users.repository.interface';
+import { Role } from '../generated/prisma/enums';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { z } from 'zod';
@@ -37,9 +28,7 @@ export class AuthService implements OnModuleInit {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @Inject(USERS_REPOSITORY) private readonly usersRepository: UsersRepository,
-    @Inject(REFRESH_SESSION_REPOSITORY)
-    private readonly refreshSessionRepository: RefreshSessionRepository,
+    private readonly prisma: PrismaService,
   ) {}
 
   async onModuleInit() {
@@ -50,7 +39,20 @@ export class AuthService implements OnModuleInit {
     return createHash('sha256').update(token).digest('hex');
   }
 
-  private toAuthenticatedUser(user: UserRecord): AuthenticatedUser {
+  private toAuthenticatedUser(user: {
+    id: string;
+    staffId: string;
+    fullName: string;
+    email: string;
+    role: Role;
+    organizationId: string;
+    organization: { id: string; name: string; code: string };
+    departmentId: string;
+    department: { id: string; name: string; code: string };
+    phone: string | null;
+    address: string | null;
+    isActive: boolean;
+  }): AuthenticatedUser {
     return {
       id: user.id,
       staffId: user.staffId,
@@ -112,51 +114,66 @@ export class AuthService implements OnModuleInit {
   }
 
   async listUsers(organizationId: string): Promise<AuthenticatedUser[]> {
-    const users =
-      await this.usersRepository.findAllByOrganizationId(organizationId);
+    const users = await this.prisma.user.findMany({
+      where: { organizationId },
+      include: { organization: true, department: true },
+      orderBy: { fullName: 'asc' },
+    });
     return users.map((user) => this.toAuthenticatedUser(user));
   }
 
-  listDepartments(organizationId: string): Promise<DepartmentRecord[]> {
-    return this.usersRepository.findDepartmentsByOrganizationId(
-      organizationId,
-    );
+  listDepartments(organizationId: string) {
+    return this.prisma.department.findMany({
+      where: { organizationId },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
   }
 
   async createUser(
     input: CreateUserDto,
     organizationId: string,
   ): Promise<AuthenticatedUser> {
-    if (
-      this.configService.get<string>('DATA_SOURCE') === 'prisma' &&
-      !z.string().uuid().safeParse(input.departmentId).success
-    ) {
+    if (!z.string().uuid().safeParse(input.departmentId).success) {
       throw new BadRequestException('The selected department ID is invalid.');
     }
 
     const email = input.email.trim().toLowerCase();
-    if (await this.usersRepository.findByEmail(email)) {
+    if (await this.prisma.user.findUnique({ where: { email }, select: { id: true } })) {
       throw new ConflictException('A user with this email already exists.');
     }
 
     const staffId = input.staffId?.trim() || `USR-${randomUUID()}`;
-    if (await this.usersRepository.findByStaffId(staffId)) {
+    if (await this.prisma.user.findUnique({ where: { staffId }, select: { id: true } })) {
       throw new ConflictException('A user with this staff ID already exists.');
     }
 
+    const department = await this.prisma.department.findFirst({
+      where: { id: input.departmentId, organizationId },
+      select: { id: true },
+    });
+    if (!department) {
+      throw new BadRequestException(
+        'The selected department does not belong to your organization.',
+      );
+    }
+
     const passwordHash = await bcrypt.hash(input.password, 12);
-    let user: UserRecord | null;
+    let user;
     try {
-      user = await this.usersRepository.create({
-        staffId,
-        fullName: input.fullName.trim(),
-        email,
-        passwordHash,
-        role: input.role,
-        organizationId,
-        departmentId: input.departmentId,
-        phone: input.phone?.trim() || null,
-        address: input.address?.trim() || null,
+      user = await this.prisma.user.create({
+        data: {
+          staffId,
+          fullName: input.fullName.trim(),
+          email,
+          passwordHash,
+          role: input.role,
+          organizationId,
+          departmentId: department.id,
+          phone: input.phone?.trim() || null,
+          address: input.address?.trim() || null,
+        },
+        include: { organization: true, department: true },
       });
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
@@ -165,17 +182,14 @@ export class AuthService implements OnModuleInit {
       throw error;
     }
 
-    if (!user) {
-      throw new BadRequestException(
-        'The selected department does not belong to your organization.',
-      );
-    }
-
     return this.toAuthenticatedUser(user);
   }
 
   async login(dto: LoginDto, res: Response): Promise<{ user: AuthenticatedUser }> {
-    const user = await this.usersRepository.findByEmail(dto.email);
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.trim().toLowerCase() },
+      include: { organization: true, department: true },
+    });
     const hashToCompare = user ? user.passwordHash : this.dummyHash;
     const isPasswordValid = await bcrypt.compare(dto.password, hashToCompare);
 
@@ -196,11 +210,13 @@ export class AuthService implements OnModuleInit {
     const familyId = randomUUID();
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
 
-    await this.refreshSessionRepository.createSession({
-      userId: user.id,
-      tokenHash,
-      familyId,
-      expiresAt,
+    await this.prisma.refreshSession.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        familyId,
+        expiresAt,
+      },
     });
 
     this.setAuthCookies(res, accessToken, rawRefreshToken);
@@ -217,8 +233,9 @@ export class AuthService implements OnModuleInit {
     }
 
     const tokenHash = this.hashToken(rawRefreshToken);
-    const session =
-      await this.refreshSessionRepository.findByTokenHash(tokenHash);
+    const session = await this.prisma.refreshSession.findUnique({
+      where: { tokenHash },
+    });
 
     if (!session) {
       throw new UnauthorizedException('Invalid refresh token.');
@@ -226,7 +243,10 @@ export class AuthService implements OnModuleInit {
 
     // Reuse detection
     if (session.revokedAt !== null) {
-      await this.refreshSessionRepository.revokeFamily(session.familyId);
+      await this.prisma.refreshSession.updateMany({
+        where: { familyId: session.familyId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
       this.clearAuthCookies(res);
       throw new UnauthorizedException(
         'Refresh token reuse detected. Session terminated.',
@@ -238,7 +258,10 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException('Refresh token has expired.');
     }
 
-    const user = await this.usersRepository.findById(session.userId);
+    const user = await this.prisma.user.findUnique({
+      where: { id: session.userId },
+      include: { organization: true, department: true },
+    });
     if (!user || !user.isActive) {
       this.clearAuthCookies(res);
       throw new UnauthorizedException(
@@ -250,15 +273,42 @@ export class AuthService implements OnModuleInit {
     const newTokenHash = this.hashToken(newRawRefreshToken);
     const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
 
-    const rotatedSession = await this.refreshSessionRepository.rotateGuarded(
-      session.id,
-      {
-        userId: user.id,
-        tokenHash: newTokenHash,
-        familyId: session.familyId,
-        expiresAt: newExpiresAt,
-      },
-    );
+    const rotatedSession = await this.prisma.$transaction(async (transaction) => {
+      const current = await transaction.refreshSession.findUnique({
+        where: { id: session.id },
+      });
+      if (!current || current.revokedAt !== null) {
+        await transaction.refreshSession.updateMany({
+          where: { familyId: session.familyId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        return null;
+      }
+
+      const now = new Date();
+      const newId = randomUUID();
+      const revoked = await transaction.refreshSession.updateMany({
+        where: { id: session.id, revokedAt: null },
+        data: { revokedAt: now, lastUsedAt: now, replacedBy: newId },
+      });
+      if (revoked.count === 0) {
+        await transaction.refreshSession.updateMany({
+          where: { familyId: session.familyId, revokedAt: null },
+          data: { revokedAt: now },
+        });
+        return null;
+      }
+
+      return transaction.refreshSession.create({
+        data: {
+          id: newId,
+          userId: user.id,
+          tokenHash: newTokenHash,
+          familyId: session.familyId,
+          expiresAt: newExpiresAt,
+        },
+      });
+    });
 
     if (!rotatedSession) {
       this.clearAuthCookies(res);
@@ -284,7 +334,10 @@ export class AuthService implements OnModuleInit {
   ): Promise<{ message: string }> {
     if (rawRefreshToken && typeof rawRefreshToken === 'string') {
       const tokenHash = this.hashToken(rawRefreshToken);
-      await this.refreshSessionRepository.revokeByTokenHash(tokenHash);
+      await this.prisma.refreshSession.updateMany({
+        where: { tokenHash, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     }
 
     this.clearAuthCookies(res);

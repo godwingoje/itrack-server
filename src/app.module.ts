@@ -8,7 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { RepositoriesModule } from './repositories/repositories.module';
+import { TicketsModule } from './tickets/tickets.module';
 
 @Module({
   imports: [
@@ -22,8 +22,8 @@ import { RepositoriesModule } from './repositories/repositories.module';
         limit: 60,
       },
     ]),
-    RepositoriesModule,
     AuthModule,
+    TicketsModule,
   ],
   controllers: [AppController],
   providers: [
