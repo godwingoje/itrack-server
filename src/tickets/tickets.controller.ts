@@ -19,6 +19,7 @@ import {
   createTicketCommentSchema,
   createTicketSchema,
   listTicketsSchema,
+  suggestTicketSchema,
   updateTicketSchema,
 } from './ticket.dto';
 import { TicketsService } from './tickets.service';
@@ -35,6 +36,17 @@ export class TicketsController {
     return this.ticketsService.create(
       user,
       this.parse(createTicketSchema, rawBody),
+    );
+  }
+
+  @Post('suggest')
+  suggest(
+    @Body() rawBody: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ticketsService.suggest(
+      user,
+      this.parse(suggestTicketSchema, rawBody),
     );
   }
 

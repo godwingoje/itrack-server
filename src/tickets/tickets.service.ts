@@ -22,6 +22,7 @@ import type {
   CreateTicketDto,
   ListTicketsQuery,
   UpdateTicketDto,
+  SuggestTicketDto,
 } from './ticket.dto';
 import {
   allowedTicketTransitions,
@@ -111,6 +112,30 @@ export class TicketsService {
     });
 
     return this.getDetail(ticket.id, user);
+  }
+
+  async suggest(user: AuthenticatedUser, input: SuggestTicketDto) {
+    const text = `${input.title} ${input.description}`.toLowerCase();
+    const categories = await this.prisma.category.findMany({
+      where: { organizationId: user.organizationId },
+      select: { id: true, name: true, defaultPriority: true, keywords: true },
+    });
+    const scored = categories
+      .map((category) => ({
+        category,
+        score: [category.name, ...category.keywords].reduce(
+          (score, keyword) => score + (text.includes(keyword.toLowerCase()) ? 1 : 0),
+          0,
+        ),
+      }))
+      .sort((a, b) => b.score - a.score || a.category.name.localeCompare(b.category.name));
+    const match = scored[0]?.score ? scored[0].category : null;
+
+    return {
+      category: match?.name ?? null,
+      priority: match?.defaultPriority ?? TicketPriority.P3_MEDIUM,
+      confidence: match ? Math.min(1, scored[0].score / 3) : 0,
+    };
   }
 
   async list(user: AuthenticatedUser, query: ListTicketsQuery) {

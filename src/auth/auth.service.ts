@@ -13,6 +13,7 @@ import type { CookieOptions, Response } from 'express';
 import { Role } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { z } from 'zod';
 import { AuthenticatedUser } from './types/authenticated-user.interface';
@@ -182,6 +183,43 @@ export class AuthService implements OnModuleInit {
       throw error;
     }
 
+    return this.toAuthenticatedUser(user);
+  }
+
+  async updateUser(
+    userId: string,
+    input: UpdateUserDto,
+    organizationId: string,
+    actingUserId: string,
+  ): Promise<AuthenticatedUser> {
+    const existing = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId },
+      include: { organization: true, department: true },
+    });
+    if (!existing) {
+      throw new BadRequestException('The selected user does not belong to your organization.');
+    }
+    if (existing.id === actingUserId && input.isActive === false) {
+      throw new BadRequestException('You cannot deactivate your own account.');
+    }
+
+    const user = await this.prisma.$transaction(async (transaction) => {
+      const updated = await transaction.user.update({
+        where: { id: existing.id },
+        data: {
+          ...(input.role !== undefined ? { role: input.role } : {}),
+          ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+        },
+        include: { organization: true, department: true },
+      });
+      if (input.isActive === false) {
+        await transaction.refreshSession.updateMany({
+          where: { userId: existing.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      return updated;
+    });
     return this.toAuthenticatedUser(user);
   }
 

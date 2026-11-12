@@ -13,3 +13,14 @@ export const createUserSchema = z.object({
 });
 
 export type CreateUserDto = z.infer<typeof createUserSchema>;
+
+export const updateUserSchema = z
+  .object({
+    role: z.enum(Role).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((value) => value.role !== undefined || value.isActive !== undefined, {
+    message: 'Provide a role or isActive value.',
+  });
+
+export type UpdateUserDto = z.infer<typeof updateUserSchema>;

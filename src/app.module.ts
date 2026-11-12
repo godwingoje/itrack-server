@@ -9,6 +9,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TicketsModule } from './tickets/tickets.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { TicketsModule } from './tickets/tickets.module';
     ]),
     AuthModule,
     TicketsModule,
+    DashboardModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [
