@@ -83,7 +83,26 @@ The authentication routes are prefixed with `/api/v1/auth`:
 
 Create-user requests require `fullName`, `email`, `password` (8–128 characters), `role`, and a `departmentId` returned by `/departments`. `staffId`, `phone`, and `address` are optional. The organization is taken from the authenticated administrator's session, not from the request body. Password-reset endpoints are not available until an email-delivery provider is configured.
 
-For Render, set `NODE_ENV=production`, `DATA_SOURCE=prisma`, `DATABASE_URL` to the production PostgreSQL connection string, and `JWT_SECRET` to a unique secret of at least 32 characters. Keep `PORT` on Render's assigned value (the service reads it automatically); optionally set `JWT_EXPIRES_IN`. `CORS_ORIGINS` is a comma-separated list of exact frontend origins and can remain unset while the frontend is local. Add the deployed frontend origin there when one exists. Do not set `SEED_PASSWORD` for production Prisma data.
+Passwords are hashed with bcrypt and the hash is never returned. The first demo organization, IT department, and administrator, technician, and employee accounts are created with `pnpm db:seed`. The seed reads `DEMO_ADMIN_PASSWORD`, `DEMO_TECHNICIAN_PASSWORD`, and `DEMO_EMPLOYEE_PASSWORD` from the ignored local `.env`, hashes them with bcrypt, and skips existing accounts without changing their passwords. Never commit these values or use demo credentials in production. Additional accounts should be created through the IT-admin-only `POST /api/v1/auth/users` endpoint.
+
+The server requires PostgreSQL and Prisma at startup; there is no memory fallback. The Neon production branch contains the current Prisma schema and seeded demo accounts. The local NestJS server was verified against Neon with admin login and `GET /api/v1/auth/users`; a hosted server deployment has not yet been verified. This project intentionally does not use Prisma migration files; future schema changes require an explicitly reviewed, non-destructive schema sync. For Render, set `NODE_ENV=production`, `DATABASE_URL` to the pooled production PostgreSQL connection string, and `JWT_SECRET` to a unique secret of at least 32 characters. Keep `PORT` on Render's assigned value (the service reads it automatically); optionally set `JWT_EXPIRES_IN`. `CORS_ORIGINS` is a comma-separated list of exact browser origins. `.env.example` includes `http://localhost:5173` for local development; replace/add the deployed frontend's exact HTTPS origin for production.
+
+### Ticket API
+
+Ticket routes are authenticated and tenant-scoped to the current user's organization. The server validates request bodies and query parameters with Zod.
+
+| Method | Route | Access | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v1/tickets` | Employee/Security: own; Technician/Admin: organization | Search/filter/paginate tickets (`q`, `status`, `priority`, `category`, `assigneeId`, `page`, `pageSize`) |
+| `POST` | `/api/v1/tickets` | Any signed-in role | Create ticket; category is currently created on first use |
+| `GET` | `/api/v1/tickets/:id` | Reporter, Technician, Admin | Read ticket, comments, visible history; accepts UUID or `IT-####` number |
+| `PATCH` | `/api/v1/tickets/:id` | Technician/Admin | Edit title, description, category, impact, urgency |
+| `POST` | `/api/v1/tickets/:id/status` | Technician/Admin; reporter may close/reopen own resolved ticket | Transition status; resolving requires a note; reopening requires a comment |
+| `POST` | `/api/v1/tickets/:id/assign` | Technician self-assign; Admin assigns user | Assign ticket and advance New to Assigned |
+| `POST` | `/api/v1/tickets/:id/comments` | Reporter, Technician, Admin | Add public reply or staff-only internal note |
+| `DELETE` | `/api/v1/tickets/:id` | Admin | Soft-delete ticket and append a delete event |
+
+Ticket status and history changes are written transactionally. Priorities are computed from impact/urgency. Ticket and category records are tenant-scoped. The current schema includes a minimal Asset relation for future API integration; there are no asset endpoints yet.
 
 ### Running the Application
 
