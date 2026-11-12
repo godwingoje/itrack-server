@@ -16,6 +16,10 @@ function isLocalFrontendOrigin(origin: string): boolean {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const expressApp = app.getHttpAdapter().getInstance() as {
+    set: (setting: string, value: unknown) => void;
+  };
+  expressApp.set('trust proxy', 1);
   const allowedOrigins = new Set(
     (process.env.CORS_ORIGINS ?? '')
       .split(',')

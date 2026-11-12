@@ -82,10 +82,16 @@ export class AuthService implements OnModuleInit {
   private getCookieOptions(): CookieOptions {
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
+    const configuredSameSite = this.configService.get<string>('COOKIE_SAME_SITE');
+    const sameSite = configuredSameSite === 'lax' || configuredSameSite === 'strict'
+      ? configuredSameSite
+      : isProduction
+        ? 'none'
+        : 'lax';
     return {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
+      secure: sameSite === 'none' || (this.configService.get<string>('COOKIE_SECURE') === 'false' ? false : isProduction),
+      sameSite,
       path: '/',
     };
   }
