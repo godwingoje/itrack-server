@@ -13,9 +13,8 @@ ITrack is designed to improve how organizations manage IT support requests and a
 - **Ticket Management:** Create, assign, track, and manage IT support tickets.
 - **Asset Management:** Register, retrieve, and manage organizational IT assets.
 - **Support Assignment:** Assign IT support personnel to tickets and assets where applicable.
-- **SLA Management:** Monitor service-level agreements and ticket resolution timelines.
+- **Overdue Status:** The server computes ticket overdue status from the current priority rules.
 - **Ticket History:** Maintain records of ticket activities, comments, and status changes.
-- **Gate Pass Management:** Manage and verify asset movement.
 - **Dashboard & Analytics:** Provide insights into support activities and operational performance.
 - **Role-Based Access Control:** Ensure users access features according to their assigned roles.
 
@@ -48,7 +47,7 @@ git clone <repository-url>
 Navigate into the project directory:
 
 ```bash
-cd fixflow-server
+cd itrack-server
 ```
 
 Install dependencies:
@@ -85,7 +84,7 @@ Create-user requests require `fullName`, `email`, `password` (8–128 characters
 
 Passwords are hashed with bcrypt and the hash is never returned. The first demo organization, IT department, and administrator, technician, and employee accounts are created with `pnpm db:seed`. The seed reads `DEMO_ADMIN_PASSWORD`, `DEMO_TECHNICIAN_PASSWORD`, and `DEMO_EMPLOYEE_PASSWORD` from the ignored local `.env`, hashes them with bcrypt, and skips existing accounts without changing their passwords. Never commit these values or use demo credentials in production. Additional accounts should be created through the IT-admin-only `POST /api/v1/auth/users` endpoint.
 
-The server requires PostgreSQL and Prisma at startup; there is no memory fallback. The Neon production branch contains the current Prisma schema and seeded demo accounts. The local NestJS server was verified against Neon with admin login and `GET /api/v1/auth/users`; a hosted server deployment has not yet been verified. This project intentionally does not use Prisma migration files; future schema changes require an explicitly reviewed, non-destructive schema sync. For Render, set `NODE_ENV=production`, `DATABASE_URL` to the pooled production PostgreSQL connection string, and `JWT_SECRET` to a unique secret of at least 32 characters. Keep `PORT` on Render's assigned value (the service reads it automatically); optionally set `JWT_EXPIRES_IN`. `CORS_ORIGINS` is a comma-separated list of exact browser origins. `.env.example` includes `http://localhost:5173` for local development; replace/add the deployed frontend's exact HTTPS origin for production.
+The server requires PostgreSQL and Prisma at startup; there is no memory fallback. The local NestJS server was verified against Neon with admin login and `GET /api/v1/auth/users`; a hosted server deployment has not yet been verified. This project intentionally does not use Prisma migration files; future schema changes require an explicitly reviewed, non-destructive schema sync. The configured Neon database has been additively synced with the `asset_assignments` table for persistent assignment history; other environments need the equivalent reviewed schema sync before deploying this code. For Render, set `NODE_ENV=production`, `DATABASE_URL` to the pooled production PostgreSQL connection string, and `JWT_SECRET` to a unique secret of at least 32 characters. Keep `PORT` on Render's assigned value (the service reads it automatically); optionally set `JWT_EXPIRES_IN`. `CORS_ORIGINS` is a comma-separated list of exact browser origins. `.env.example` includes `http://localhost:5173` for local development; replace/add the deployed frontend's exact HTTPS origin for production.
 
 ### Ticket API
 
@@ -102,7 +101,17 @@ Ticket routes are authenticated and tenant-scoped to the current user's organiza
 | `POST` | `/api/v1/tickets/:id/comments` | Reporter, Technician, Admin | Add public reply or staff-only internal note |
 | `DELETE` | `/api/v1/tickets/:id` | Admin | Soft-delete ticket and append a delete event |
 
-Ticket status and history changes are written transactionally. Priorities are computed from impact/urgency. Ticket and category records are tenant-scoped. The current schema includes a minimal Asset relation for future API integration; there are no asset endpoints yet.
+Ticket status and history changes are written transactionally. Priorities are computed from impact/urgency. Ticket and category records are tenant-scoped.
+
+### Asset API
+
+Asset routes are tenant-scoped under `/api/v1/assets`. `GET /assets` supports search, type/condition, assignee, warranty-expiry, retired-asset, and pagination filters. Retired assets are excluded by default; `condition=RETIRED` and `includeRetired=true` make them queryable. Asset detail responses include related tickets and assignment history. Asset create/update/retire actions are restricted to IT staff, with retirement limited to IT Admins.
+
+Assignment changes are recorded in the additive `asset_assignments` table, including the previous/new assignee IDs and name snapshots, actor, and timestamp. Apply the reviewed, non-destructive schema sync before deploying code that uses this table.
+
+### Dashboard API
+
+`GET /api/v1/dashboard/summary` is available to IT Admins and Technicians. The response includes all-time ticket counts by status; average resolution time and category counts over the last 30 days; server-calculated overdue tickets and per-technician open/overdue workload; and asset counts by type/condition plus warranties expiring within 30 days. SLA policy editing, progress timers, escalation, gate, and stock metrics are not part of this API.
 
 ### Running the Application
 

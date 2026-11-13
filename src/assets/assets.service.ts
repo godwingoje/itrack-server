@@ -21,13 +21,35 @@ export class AssetsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(user: AuthenticatedUser, query: ListAssetsQuery) {
+    const now = new Date();
+    const warrantyExpiryRange = query.warrantyExpiringWithinDays
+      ? {
+          gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())),
+          lt: new Date(
+            Date.UTC(
+              now.getUTCFullYear(),
+              now.getUTCMonth(),
+              now.getUTCDate() + query.warrantyExpiringWithinDays + 1,
+            ),
+          ),
+        }
+      : undefined;
     const where = {
       organizationId: user.organizationId,
       ...(user.role === Role.EMPLOYEE ? { assignedToId: user.id } : {}),
       ...(query.type ? { type: query.type } : {}),
-      ...(query.condition ? { condition: query.condition } : {}),
+      ...(!query.includeRetired && query.condition !== AssetCondition.RETIRED
+        ? { condition: { ...(query.condition ? { equals: query.condition } : {}), not: AssetCondition.RETIRED } }
+        : query.condition ? { condition: query.condition } : {}),
+      ...(warrantyExpiryRange ? { warrantyExpiry: warrantyExpiryRange } : {}),
       ...(query.assignedToId && user.role !== Role.EMPLOYEE
-        ? { assignedToId: query.assignedToId === 'unassigned' ? null : query.assignedToId }
+        ? {
+            assignedToId: query.assignedToId === 'unassigned'
+              ? null
+              : query.assignedToId === 'assigned'
+                ? { not: null }
+                : query.assignedToId,
+          }
         : {}),
       ...(query.q
         ? {
@@ -61,6 +83,10 @@ export class AssetsService {
         select: { id: true, number: true, title: true, status: true, priority: true, createdAt: true },
         orderBy: { createdAt: 'desc' },
       },
+      assignmentHistory: {
+        include: { changedBy: { select: { id: true, fullName: true } } },
+        orderBy: { createdAt: 'desc' },
+      },
     });
     this.assertAccess(asset.assignedToId, user);
     return asset;
@@ -68,23 +94,38 @@ export class AssetsService {
 
   async create(user: AuthenticatedUser, input: CreateAssetDto) {
     this.assertStaff(user);
-    await this.assertAssignee(input.assignedToId, user.organizationId);
+    const assignee = await this.assertAssignee(input.assignedToId, user.organizationId);
     try {
-      return await this.prisma.asset.create({
-        data: {
-          assetTag: input.assetTag,
-          serialNumber: input.serialNumber,
-          type: input.type,
-          make: input.make,
-          model: input.model,
-          purchaseDate: input.purchaseDate,
-          warrantyExpiry: input.warrantyExpiry,
-          condition: input.condition ?? AssetCondition.GOOD,
-          notes: input.notes,
-          assignedToId: input.assignedToId,
-          organizationId: user.organizationId,
-        },
-        include: assetDetails,
+      return await this.prisma.$transaction(async (transaction) => {
+        const asset = await transaction.asset.create({
+          data: {
+            assetTag: input.assetTag,
+            serialNumber: input.serialNumber,
+            type: input.type,
+            make: input.make,
+            model: input.model,
+            purchaseDate: input.purchaseDate,
+            warrantyExpiry: input.warrantyExpiry,
+            condition: input.condition ?? AssetCondition.GOOD,
+            notes: input.notes,
+            assignedToId: input.assignedToId,
+            organizationId: user.organizationId,
+          },
+          include: assetDetails,
+        });
+        if (input.assignedToId) {
+          await transaction.assetAssignment.create({
+            data: {
+              assetId: asset.id,
+              previousAssigneeId: null,
+              previousAssigneeName: null,
+              newAssigneeId: input.assignedToId,
+              newAssigneeName: assignee?.fullName ?? null,
+              changedById: user.id,
+            },
+          });
+        }
+        return asset;
       });
     } catch (error) {
       if (this.isUniqueError(error)) throw new ConflictException('Asset tag or serial number is already in use.');
@@ -98,12 +139,35 @@ export class AssetsService {
     if (asset.condition === AssetCondition.RETIRED) {
       throw new UnprocessableEntityException('Retired assets cannot be edited.');
     }
-    if (input.assignedToId !== undefined) await this.assertAssignee(input.assignedToId, user.organizationId);
+    const nextAssignee = input.assignedToId !== undefined
+      ? await this.assertAssignee(input.assignedToId, user.organizationId)
+      : null;
     try {
-      return await this.prisma.asset.update({
-        where: { id: asset.id },
-        data: input,
-        include: assetDetails,
+      return await this.prisma.$transaction(async (transaction) => {
+        const updated = await transaction.asset.update({
+          where: { id: asset.id },
+          data: input,
+          include: assetDetails,
+        });
+        if (input.assignedToId !== undefined && input.assignedToId !== asset.assignedToId) {
+          const previousAssignee = asset.assignedToId
+            ? await transaction.user.findFirst({
+                where: { id: asset.assignedToId, organizationId: user.organizationId },
+                select: { fullName: true },
+              })
+            : null;
+          await transaction.assetAssignment.create({
+            data: {
+              assetId: asset.id,
+              previousAssigneeId: asset.assignedToId,
+              previousAssigneeName: previousAssignee?.fullName ?? null,
+              newAssigneeId: input.assignedToId,
+              newAssigneeName: nextAssignee?.fullName ?? null,
+              changedById: user.id,
+            },
+          });
+        }
+        return updated;
       });
     } catch (error) {
       if (this.isUniqueError(error)) throw new ConflictException('Asset tag or serial number is already in use.');
@@ -117,10 +181,29 @@ export class AssetsService {
     if (asset.condition === AssetCondition.RETIRED) {
       throw new UnprocessableEntityException('Asset is already retired.');
     }
-    return this.prisma.asset.update({
-      where: { id: asset.id },
-      data: { condition: AssetCondition.RETIRED, assignedToId: null },
-      include: assetDetails,
+    return this.prisma.$transaction(async (transaction) => {
+      const retired = await transaction.asset.update({
+        where: { id: asset.id },
+        data: { condition: AssetCondition.RETIRED, assignedToId: null },
+        include: assetDetails,
+      });
+      if (asset.assignedToId) {
+        const previousAssignee = await transaction.user.findFirst({
+          where: { id: asset.assignedToId, organizationId: user.organizationId },
+          select: { fullName: true },
+        });
+        await transaction.assetAssignment.create({
+          data: {
+            assetId: asset.id,
+            previousAssigneeId: asset.assignedToId,
+            previousAssigneeName: previousAssignee?.fullName ?? null,
+            newAssigneeId: null,
+            newAssigneeName: null,
+            changedById: user.id,
+          },
+        });
+      }
+      return retired;
     });
   }
 
@@ -138,12 +221,13 @@ export class AssetsService {
   }
 
   private async assertAssignee(assigneeId: string | null | undefined, organizationId: string) {
-    if (!assigneeId) return;
+    if (!assigneeId) return null;
     const assignee = await this.prisma.user.findFirst({
       where: { id: assigneeId, organizationId, isActive: true },
-      select: { id: true },
+      select: { id: true, fullName: true },
     });
     if (!assignee) throw new UnprocessableEntityException('Assets can only be assigned to an active user in your organization.');
+    return assignee;
   }
 
   private assertAccess(assignedToId: string | null, user: AuthenticatedUser) {
