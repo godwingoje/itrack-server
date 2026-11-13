@@ -52,9 +52,15 @@ export const createTicketCommentSchema = z.object({
   isInternal: z.boolean().default(false),
 });
 
+export const suggestTicketSchema = z.object({
+  title: z.string().trim().min(3).max(120),
+  description: z.string().trim().min(3).max(5000).optional().default(''),
+});
+
 export type CreateTicketDto = z.infer<typeof createTicketSchema>;
 export type ListTicketsQuery = z.infer<typeof listTicketsSchema>;
 export type UpdateTicketDto = z.infer<typeof updateTicketSchema>;
 export type ChangeTicketStatusDto = z.infer<typeof changeTicketStatusSchema>;
 export type AssignTicketDto = z.infer<typeof assignTicketSchema>;
 export type CreateTicketCommentDto = z.infer<typeof createTicketCommentSchema>;
+export type SuggestTicketDto = z.infer<typeof suggestTicketSchema>;
