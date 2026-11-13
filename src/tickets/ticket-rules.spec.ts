@@ -64,4 +64,5 @@ describe('ticket rules', () => {
       ),
     ).toBe(false);
   });
+
 });
