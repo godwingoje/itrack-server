@@ -121,6 +121,7 @@ model User {
   comments        TicketComment[]
   ticketEvents    TicketEvent[]
   assignedAssets  Asset[]
+  assetAssignmentChanges AssetAssignment[] @relation("AssetAssignmentActor")
 
   @@map("users")
 }
@@ -176,12 +177,30 @@ model Asset {
   assignedToId   String?        @map("assigned_to_id") @db.Uuid
   assignedTo     User?          @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
   tickets        Ticket[]
+  assignmentHistory AssetAssignment[]
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
   @@index([assignedToId])
   @@index([organizationId])
   @@map("assets")
+}
+
+model AssetAssignment {
+  id                   String   @id @default(uuid()) @db.Uuid
+  assetId              String   @map("asset_id") @db.Uuid
+  asset                Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  previousAssigneeId   String?  @map("previous_assignee_id") @db.Uuid
+  previousAssigneeName String?  @map("previous_assignee_name")
+  newAssigneeId        String?  @map("new_assignee_id") @db.Uuid
+  newAssigneeName      String?  @map("new_assignee_name")
+  changedById          String   @map("changed_by_id") @db.Uuid
+  changedBy            User     @relation("AssetAssignmentActor", fields: [changedById], references: [id], onDelete: Restrict)
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@index([assetId, createdAt])
+  @@index([changedById])
+  @@map("asset_assignments")
 }
 
 model Ticket {
@@ -223,14 +242,14 @@ model Ticket {
 }
 
 model TicketComment {
-  id        String   @id @default(uuid()) @db.Uuid
-  ticketId  String   @map("ticket_id") @db.Uuid
-  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  authorId  String   @map("author_id") @db.Uuid
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  body      String   @db.VarChar(5000)
+  id         String   @id @default(uuid()) @db.Uuid
+  ticketId   String   @map("ticket_id") @db.Uuid
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId   String   @map("author_id") @db.Uuid
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  body       String   @db.VarChar(5000)
   isInternal Boolean @default(false) @map("is_internal")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([ticketId, createdAt])
   @@map("ticket_comments")

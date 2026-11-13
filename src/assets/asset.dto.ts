@@ -36,7 +36,9 @@ export const listAssetsSchema = z.object({
   q: z.string().trim().max(200).optional(),
   type: z.enum(AssetType).optional(),
   condition: z.enum(AssetCondition).optional(),
-  assignedToId: z.union([z.uuid(), z.literal('unassigned')]).optional(),
+  assignedToId: z.union([z.uuid(), z.enum(['assigned', 'unassigned'])]).optional(),
+  warrantyExpiringWithinDays: z.coerce.number().int().min(1).max(365).optional(),
+  includeRetired: z.coerce.boolean().default(false),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
