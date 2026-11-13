@@ -125,8 +125,12 @@ export class AssetsService {
   }
 
   private async find(assetId: string, organizationId: string, include?: object) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(assetId);
     const asset = await this.prisma.asset.findFirst({
-      where: { id: assetId, organizationId },
+      where: {
+        ...(isUuid ? { id: assetId } : { assetTag: assetId }),
+        organizationId,
+      },
       ...(include ? { include } : {}),
     });
     if (!asset) throw new NotFoundException('Asset not found.');
