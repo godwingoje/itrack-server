@@ -14,6 +14,8 @@ import { Role } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/create-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { LoginDto } from './dto/login.dto';
 import { z } from 'zod';
 import { AuthenticatedUser } from './types/authenticated-user.interface';
@@ -208,11 +210,15 @@ export class AuthService implements OnModuleInit {
     if (existing.id === actingUserId && input.isActive === false) {
       throw new BadRequestException('You cannot deactivate your own account.');
     }
+    if (existing.id === actingUserId && input.role !== undefined && input.role !== existing.role) {
+      throw new BadRequestException('You cannot change your own role.');
+    }
 
     const user = await this.prisma.$transaction(async (transaction) => {
       const updated = await transaction.user.update({
         where: { id: existing.id },
         data: {
+          ...(input.fullName !== undefined ? { fullName: input.fullName } : {}),
           ...(input.role !== undefined ? { role: input.role } : {}),
           ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
         },
@@ -229,6 +235,18 @@ export class AuthService implements OnModuleInit {
     return this.toAuthenticatedUser(user);
   }
 
+  async updateProfile(
+    userId: string,
+    input: UpdateProfileDto,
+  ): Promise<AuthenticatedUser> {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { fullName: input.fullName },
+      include: { organization: true, department: true },
+    });
+    return this.toAuthenticatedUser(user);
+  }
+
   async login(dto: LoginDto, res: Response): Promise<{ user: AuthenticatedUser }> {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.trim().toLowerCase() },
@@ -241,20 +259,12 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    const payload: JwtPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      organizationId: user.organizationId,
-    };
-    const accessToken = await this.jwtService.signAsync(payload);
-
     const rawRefreshToken = randomBytes(32).toString('hex');
     const tokenHash = this.hashToken(rawRefreshToken);
     const familyId = randomUUID();
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
 
-    await this.prisma.refreshSession.create({
+    const refreshSession = await this.prisma.refreshSession.create({
       data: {
         userId: user.id,
         tokenHash,
@@ -263,9 +273,55 @@ export class AuthService implements OnModuleInit {
       },
     });
 
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
+      sid: refreshSession.id,
+    };
+    const accessToken = await this.jwtService.signAsync(payload);
+
     this.setAuthCookies(res, accessToken, rawRefreshToken);
 
     return { user: this.toAuthenticatedUser(user) };
+  }
+
+  async changePassword(
+    userId: string,
+    input: ChangePasswordDto,
+    res: Response,
+  ): Promise<{ message: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Account is inactive or no longer exists.');
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(
+      input.currentPassword,
+      user.passwordHash,
+    );
+    if (!isCurrentPasswordValid) {
+      throw new BadRequestException('Current password is incorrect.');
+    }
+
+    const passwordHash = await bcrypt.hash(input.newPassword, 12);
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.user.update({
+        where: { id: userId },
+        data: { passwordHash },
+      });
+      await transaction.refreshSession.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    });
+
+    this.clearAuthCookies(res);
+    return { message: 'Password changed. Sign in again on each device.' };
   }
 
   async refresh(
@@ -364,6 +420,7 @@ export class AuthService implements OnModuleInit {
       email: user.email,
       role: user.role,
       organizationId: user.organizationId,
+      sid: rotatedSession.id,
     };
     const accessToken = await this.jwtService.signAsync(payload);
 

@@ -3,13 +3,27 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 
+const LEGACY_SSL_MODES = new Set(['prefer', 'require', 'verify-ca']);
+
+export function normalizeDatabaseSslMode(connectionString: string): string {
+  const sslModeParameter = /([?&]sslmode=)([^&#]+)/i;
+  const match = connectionString.match(sslModeParameter);
+  if (!match || !LEGACY_SSL_MODES.has(match[2].toLowerCase())) {
+    return connectionString;
+  }
+
+  return connectionString.replace(sslModeParameter, '$1verify-full');
+}
+
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
   constructor(private readonly configService: ConfigService) {
-    const connectionString = configService.getOrThrow<string>('DATABASE_URL');
+    const connectionString = normalizeDatabaseSslMode(
+      configService.getOrThrow<string>('DATABASE_URL'),
+    );
 
     super({
       adapter: new PrismaPg({
