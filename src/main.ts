@@ -1,6 +1,8 @@
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { PrismaService } from './prisma/prisma.service';
 
 function isLocalFrontendOrigin(origin: string): boolean {
   try {
@@ -16,6 +18,11 @@ function isLocalFrontendOrigin(origin: string): boolean {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const logger = new Logger('Bootstrap');
+  const port = Number(process.env.PORT ?? 3000);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error('PORT must be an integer between 1 and 65535.');
+  }
   const expressApp = app.getHttpAdapter().getInstance() as {
     set: (setting: string, value: unknown) => void;
   };
@@ -44,6 +51,21 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(port, '0.0.0.0');
+
+  void app
+    .get(PrismaService)
+    .$connect()
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Unknown database error.';
+      logger.error(
+        `Initial database connection failed after the HTTP listener started: ${message}`,
+      );
+    });
 }
-void bootstrap();
+
+void bootstrap().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : 'Unknown startup error.';
+  console.error(`ITrack API failed to start: ${message}`);
+  process.exitCode = 1;
+});

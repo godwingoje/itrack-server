@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
@@ -18,7 +18,7 @@ export function normalizeDatabaseSslMode(connectionString: string): string {
 @Injectable()
 export class PrismaService
   extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
+  implements OnModuleDestroy
 {
   constructor(private readonly configService: ConfigService) {
     const connectionString = normalizeDatabaseSslMode(
@@ -28,12 +28,9 @@ export class PrismaService
     super({
       adapter: new PrismaPg({
         connectionString,
+        connectionTimeoutMillis: 10_000,
       }),
     });
-  }
-
-  async onModuleInit() {
-    await this.$connect();
   }
 
   async onModuleDestroy() {
