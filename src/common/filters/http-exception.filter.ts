@@ -4,11 +4,56 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
 
+const DATABASE_CONNECTION_ERROR_CODES = new Set([
+  'P1001',
+  'P1002',
+  'P2024',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+]);
+
+function isDatabaseConnectionError(exception: unknown): boolean {
+  const seen = new Set<object>();
+  let current = exception;
+
+  while (typeof current === 'object' && current !== null && !seen.has(current)) {
+    seen.add(current);
+
+    if (
+      'code' in current &&
+      typeof current.code === 'string' &&
+      DATABASE_CONNECTION_ERROR_CODES.has(current.code)
+    ) {
+      return true;
+    }
+
+    if (
+      'message' in current &&
+      typeof current.message === 'string' &&
+      /can't reach database server|database.*(?:connection|timeout)|connection.*(?:timeout|refused|reset|closed|terminated|unexpectedly)|timeout expired/i.test(
+        current.message,
+      )
+    ) {
+      return true;
+    }
+
+    current = 'cause' in current ? current.cause : undefined;
+  }
+
+  return false;
+}
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -17,7 +62,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let code = 'INTERNAL_SERVER_ERROR';
     let message = 'An unexpected error occurred.';
 
-    if (exception instanceof HttpException) {
+    if (isDatabaseConnectionError(exception)) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      code = 'DATABASE_UNAVAILABLE';
+      message = 'The service is temporarily unavailable. Please try again shortly.';
+      this.logger.error(
+        'Database connection failed while handling a request.',
+        exception instanceof Error ? exception.stack : undefined,
+      );
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const res = exception.getResponse();
 
@@ -35,6 +88,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
         }
       }
       code = this.getErrorCode(status, code);
+    } else {
+      this.logger.error(
+        'Unhandled exception while handling a request.',
+        exception instanceof Error ? exception.stack : String(exception),
+      );
     }
 
     response.status(status).json({

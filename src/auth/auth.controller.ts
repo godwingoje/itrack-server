@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Req,
   Res,
@@ -16,8 +17,10 @@ import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { Roles } from './decorators/roles.decorator';
+import { changePasswordSchema } from './dto/change-password.dto';
 import { createUserSchema } from './dto/create-user.dto';
 import { loginSchema } from './dto/login.dto';
+import { updateProfileSchema } from './dto/update-profile.dto';
 import type { AuthenticatedUser } from './types/authenticated-user.interface';
 
 @Controller('auth')
@@ -75,9 +78,45 @@ export class AuthController {
     );
   }
 
+  @Post('change-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @Body() rawBody: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const parseResult = changePasswordSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      const message = parseResult.error.issues
+        .map((issue) => issue.message)
+        .join('; ');
+      throw new BadRequestException(message);
+    }
+
+    return this.authService.changePassword(user.id, parseResult.data, res);
+  }
+
   @Get('me')
   getMe(@CurrentUser() user: AuthenticatedUser) {
     return { user };
+  }
+
+  @Patch('me')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async updateProfile(
+    @Body() rawBody: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const parseResult = updateProfileSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      const message = parseResult.error.issues
+        .map((issue) => issue.message)
+        .join('; ');
+      throw new BadRequestException(message);
+    }
+
+    return { user: await this.authService.updateProfile(user.id, parseResult.data) };
   }
 
   @Get('departments')

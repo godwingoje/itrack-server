@@ -16,11 +16,18 @@ export type CreateUserDto = z.infer<typeof createUserSchema>;
 
 export const updateUserSchema = z
   .object({
+    fullName: z.string().trim().min(1).max(120).optional(),
     role: z.enum(Role).optional(),
     isActive: z.boolean().optional(),
   })
-  .refine((value) => value.role !== undefined || value.isActive !== undefined, {
-    message: 'Provide a role or isActive value.',
-  });
+  .refine(
+    (value) =>
+      value.fullName !== undefined ||
+      value.role !== undefined ||
+      value.isActive !== undefined,
+    {
+      message: 'Provide a fullName, role, or isActive value.',
+    },
+  );
 
 export type UpdateUserDto = z.infer<typeof updateUserSchema>;
